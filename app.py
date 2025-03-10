@@ -51,7 +51,7 @@ def generated_playlist():
         
         # Add channel info and stream URL
         playlist += f"#EXTINF:-1,{channel_name}\n"
-        playlist += f"http://rayuvtsitb.zapto.org:5000/stream/{channel_id}.m3u8\n"
+        playlist += f"http://rayuvtsitb.zapto.org:80/stream/{channel_id}.m3u8\n"
     
     return Response(
         playlist,
@@ -80,6 +80,6 @@ def get_sessionId(username, password):
     return jsessionid
 
 
-app.run(host='127.0.0.1', port=5000)
+app.run(host='.0.0.0.0', port=80)
 
 
