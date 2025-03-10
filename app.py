@@ -1,32 +1,85 @@
-import os
 
-from flask import (Flask, redirect, render_template, request,
-                   send_from_directory, url_for)
+from flask import Flask, Response, render_template_string, request, redirect
+import requests
 
-app = Flask(__name__)
-
-
-@app.route('/')
-def index():
-   print('Request for index page received')
-   return render_template('index.html')
-
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory(os.path.join(app.root_path, 'static'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
-
-@app.route('/hello', methods=['POST'])
-def hello():
-   name = request.form.get('name')
-
-   if name:
-       print('Request for hello page received with name=%s' % name)
-       return render_template('hello.html', name = name)
-   else:
-       print('Request for hello page received with no name or blank name -- redirecting')
-       return redirect(url_for('index'))
+app = Flask("__name__")
 
 
-if __name__ == '__main__':
-   app.run()
+username = "7576"
+password = "7576"
+
+
+#=======================================================================================================================
+
+channels_ids = "https://mw.nimitv.net/wbs/api/media/channels/?categoryId=0&type=TV"
+
+
+@app.route('/stream/<channel_id>.m3u8')
+def stream(channel_id):
+    try:
+        sessionId = get_sessionId(username, password)
+        channel_url = f"https://mw.nimitv.net/wbs/api/v2/tv/{channel_id}"
+        headers = {
+            "Cookie": f"JSESSIONID={sessionId}"
+        }
+        response = requests.get(channel_url, headers=headers, verify=False)
+        response.raise_for_status()
+        stream_url = response.json()["playbackUrl"]
+        return redirect(stream_url)
+    except Exception as e:
+        return Response(f"Error: {str(e)}", status=500)
+
+
+
+
+@app.route('/generated_playlist.m3u')
+def generated_playlist():
+    sessionId = get_sessionId(username, password)
+
+    headers = {
+        "Cookie": f"JSESSIONID={sessionId}"
+    }
+
+    channels_response = requests.get(channels_ids, headers=headers, verify=False).json()
+    
+    # Start building M3U playlist
+    playlist = "#EXTM3U\n"
+    
+    for channel in channels_response:
+        channel_id = channel['id']
+        channel_name = channel['name']
+        
+        # Add channel info and stream URL
+        playlist += f"#EXTINF:-1,{channel_name}\n"
+        playlist += f"http://rayuvtsitb.zapto.org:5000/stream/{channel_id}.m3u8\n"
+    
+    return Response(
+        playlist,
+        mimetype='application/x-mpegurl',
+        headers={'Content-Disposition': 'attachment; filename=playlist.m3u'}
+    )
+        
+
+def get_sessionId(username, password):
+    url = "https://mw.nimitv.net/wbs/pc/auth"
+    payload = {
+        "model": "Electron App",
+        "userName": username,
+        "password": password,
+        "serialNumber": "pc.7d48b247bc4dd3921c961ba0bf9f6d55",
+        "macAddress": "00:15:5d:f4:05:72"
+    }
+    headers = {
+        "Content-Type": "application/json"
+    }   
+    response = requests.post(url, json=payload, headers=headers, verify=False)
+    # Get the Set-Cookie header
+    cookie_header = response.headers.get('Set-Cookie')
+    # Extract JSESSIONID value
+    jsessionid = cookie_header.split(';')[0].split('=')[1]
+    return jsessionid
+
+
+app.run(host='127.0.0.1', port=5000)
+
+
